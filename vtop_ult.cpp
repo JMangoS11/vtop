@@ -339,7 +339,7 @@ int get_latency_class(int latency){
                 return 1;
         }
 
-        if(latency< 1000){
+        if(latency< 1500){
                 return 2;
         }
         if(latency< threefour_latency_class){
@@ -423,6 +423,7 @@ int measure_latency_pair(int i, int j)
 			}
 		}
 		std::cout<<"Times around:"<<amount_of_times<<"I"<<i<<" J:"<<j<<" Sample passed " << (int)(best_sample*100) << " next.\n";
+		printf("The latency between %d and %d: %d\n", i, j, (int)(best_sample * 100));
 		return (int)(best_sample * 100);
 	}
 }
@@ -449,6 +450,8 @@ void apply_optimization(void){
 					if(top_stack[x][z] == 0){
 						set_latency_pair(x,z,sub_rel);
 					}else if(top_stack[x][z] != sub_rel){
+						printf("x: %d, z: %d, topstack xz %d, sub_rel: %d \n", x, z, top_stack[x][z], sub_rel);
+						printf("y: %d, z: %d, topstack yz %d, sub_rel: %d \n", y, z, top_stack[y][z], sub_rel);
 						failed_test = true;
 						return;
 					}
@@ -912,7 +915,7 @@ int main(int argc, char *argv[])
 	enableAllCpus();
 	performProbing();
 	if(!failed_test){
-		giveTopologyToKernel();
+		//giveTopologyToKernel();
 		parseTopology();
 		disableStackingCpus();
 	}else{
@@ -920,9 +923,13 @@ int main(int argc, char *argv[])
 	}
 
 	while(1){
+
+		if(verbose) {
+			print_population_matrix();
+}
 		//if topology is not correct, reprobe
 		if(failed_test){
-			failed_test=false
+			failed_test=false;
 			resetTopologyMatrix();
 			enableAllCpus();
 			popul_laten_last = now_nsec();
@@ -932,7 +939,7 @@ int main(int argc, char *argv[])
 			if(!failed_test){
 				if(verbose)
 				printf("TOPOLOGY PROBE SUCCESSFUL.TOOK (MILLISECONDS):%lf\n", (now_nsec()-popul_laten_last)/(double)1000000);
-				giveTopologyToKernel();
+				//giveTopologyToKernel();
 				parseTopology();
 				disableStackingCpus();
 			}else{
@@ -953,7 +960,7 @@ int main(int argc, char *argv[])
 		}else{
 			if(verbose)
 			printf("TOPOLOGY VERIFICATION FAILED.TOOK (MILLISECONDS):%lf\n", (now_nsec()-popul_laten_last)/(double)1000000);
-			failed_test = true
+			failed_test = true;
 		}
 	}		
 }
