@@ -359,6 +359,7 @@ int measure_latency_pair(int i, int j)
 	if(latency_valid != -1 && latency_valid != 1){
                         amount_of_times = -6;
     }
+	//In the verification stage, we make less effort to verify the stacking topology.
 	if(latency_valid == 1){
 		amount_of_times = 2;
 	}
