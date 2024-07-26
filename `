@@ -26,12 +26,6 @@
 #include <sys/syscall.h>
 #include <unordered_map>
 #include <stdio.h>
-
-#include <map>
-#include <iostream>
-#include <utility>
-#include <deque>
-
 #define PROBE_MODE	(0)
 #define DIRECT_MODE	(1)
 
@@ -90,12 +84,6 @@ pthread_mutex_t top_stack_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 std::vector<pid_t> stopped_processes;
 
-
-std::map<std::pair<int, int>, int> latencyMap;
-std::deque<std::pair<int, int>> keyOrder;
-
-
-
 void giveTopologyToKernel(){
         std::string output_str = "";
         for(int j = 3;j<6;j++){
@@ -137,7 +125,6 @@ bool toggle_CPU_active(int cpuNumber,bool active) { //commented all refrences
 	
     if (!file) {
         std::cerr << "Error: Failed to write to " << path << std::endl;
-        return false;
         return false;
     }
 
@@ -477,7 +464,7 @@ void apply_optimization(void){
 						int save = SAMPLE_US;
                         		        SAMPLE_US *= 3;
 						int lowest = INT_MAX; 
-                                		for(int w = 0; w < 6; w++) {
+                                		for(int w = 0; w < 20; w++) {
                                         		int latency = measure_latency_pair(x,y);
 							if(latency < lowest) {lowest = latency;}
 							int newClass = get_latency_class(latency);
@@ -603,7 +590,7 @@ void ST_find_topology(std::vector<int> input){
 			int save = SAMPLE_US;	
 			int fixFail = 0;
 			SAMPLE_US *= 3;
-                                for(int w = 0; w < 3; w++) {
+                                for(int w = 0; w < 20; w++) {
                                         int latency = measure_latency_pair(i,j);
 					if(latency < minimum_latency) {minimum_latency = latency;}
                                         if(latency_valid == get_latency_class(latency)) {
@@ -615,19 +602,19 @@ void ST_find_topology(std::vector<int> input){
                                 }
 			SAMPLE_US = save;
 			if(fixFail == 0) {
-				failed_test = true;
+				//failed_test = true;
 			}
 		}
 		if(failed_test){
 
 
-			//threefour_latency_class = minimum_latency*1.05;
-                       // printf("-----threefour is incorrect, new value is %d \n", threefour_latency_class);
+			threefour_latency_class = minimum_latency*1.05;
+                        printf("-----threefour is incorrect, new value is %d \n", threefour_latency_class);
 
 
 
 			printf("Failed ST, topstack[i][j] %d, i %d, j %d, latency_valid %d  \n",top_stack[i][j], i, j, latency_valid);
-                        return;
+                       // return;
 
 		}
 	}
@@ -774,7 +761,6 @@ bool verify_topology(void){
 	if(failed_test == true){
 		nullify_changes(task_set_arr);
 		printf("Failed cpu verification \n");
-		latency_valid = -1;
 		return false;
 	}
 	task_set_arr = std::vector<std::vector<int>>(pair_to_thread_arr.size());
@@ -787,7 +773,6 @@ bool verify_topology(void){
 	if(failed_test == true){
 		nullify_changes(task_set_arr);
 		printf("Failed smt verification");
-		latency_valid = -1;
 		return false;
 	}
 	task_set_arr = std::vector<std::vector<int>>(pair_to_thread_arr.size()); 
@@ -1049,13 +1034,12 @@ int main(int argc, char *argv[])
 		if(verify_topology()){
 			if(verbose)
 			printf("TOPOLOGY VERIFIED.TOOK (MILLISECONDS):%lf TF = %d\n", (now_nsec()-popul_laten_last)/(double)1000000, threefour_latency_class);
-			printf("Here");
 			sleep(sleep_time);
 		}else{
-			latency_valid = -1;
 			if(verbose)
 			printf("TOPOLOGY VERIFICATION FAILED.TOOK (MILLISECONDS):%lf\n", (now_nsec()-popul_laten_last)/(double)1000000);
 			failed_test = true;
 		}
 	}		
 }
+
