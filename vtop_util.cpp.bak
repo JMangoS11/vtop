@@ -983,6 +983,134 @@ void resetTopologyMatrix(){
 	}
 }
 
+
+int main(int argc, char *argv[])
+{
+	
+	uint64_t popul_laten_last = now_nsec();
+	uint64_t popul_laten_now = now_nsec();
+	//set program to high priority
+	moveCurrentThread();
+	nr_cpus = get_nprocs();
+
+	//initialize the topology matrix
+	for (int i = 0; i < LAST_CPU_ID; i++) {
+		std::vector<int> cpumap(LAST_CPU_ID);
+		top_stack.push_back(cpumap);
+	}
+	for(int p=0;p< LAST_CPU_ID;p++){
+		top_stack[p][p] = 1;
+	}
+	
+	const std::vector<std::string_view> args(argv, argv + argc);
+  	setArguments(args);
+	//initial probing
+	//enableAllCpus();
+	performProbing();
+	if(!failed_test){
+		giveTopologyToKernel();
+		parseTopology();
+		//disableStackingCpus();
+	}else{
+		printf("Probing failed, waiting until next session\n");
+	}
+
+	while(1){
+
+		if(verbose) {
+			print_population_matrix();
+}
+                for(int j = 0;j<pairs_in_numa.size();j++){
+                        std::vector<int> threads_in_pair = bitmap_to_ord_vector(pair_to_thread_arr[pairs_in_numa[j]]); 
+                        for(int z=0;z<threads_in_pair.size();z++){
+                                std::vector<int> cpus_in_thread = bitmap_to_ord_vector(thread_to_cpu_arr[threads_in_pair[z]]); 
+                                spaces+=1;
+                                for(int y=0;y<cpus_in_thread.size();y++){
+                                        spaces+=3;
+                                }
+                        }
+					if(verbose){
+					std::cout<<"[";
+                	for(int l = 0; l<spaces-2;l++){
+                        	std::cout<<" ";
+                	}
+                	std::cout<<"]";
+					}
+					spaces=0;
+                }
+        }
+		if(verbose){
+        	printf("\n");
+		}
+	for (int i = 0; i < nr_numa_groups; i++) {
+                spaces=0;
+                std::vector<int> pairs_in_numa =  bitmap_to_ord_vector(numa_to_pair_arr[i]);
+                for(int j = 0;j<pairs_in_numa.size();j++){
+                        std::vector<int> threads_in_pair = bitmap_to_ord_vector(pair_to_thread_arr[pairs_in_numa[j]]); 
+                        for(int z=0;z<threads_in_pair.size();z++){
+                                std::vector<int> cpus_in_thread = bitmap_to_ord_vector(thread_to_cpu_arr[threads_in_pair[z]]); 
+                                if(verbose){
+									std::cout<<"[";
+								}
+                                for(int y=0;y<cpus_in_thread.size();y++){
+					printf("%2d",cpus_in_thread[y]);
+					if(y!=cpus_in_thread.size()-1){
+						if(verbose){
+							std::cout<<" ";
+						}
+					}
+                                }
+								if(verbose){
+                                	std::cout<<"]";
+								}
+                        }
+                }
+        }
+		if(verbose){
+        printf("\n");
+		}
+
+	printf("%d ", nr_numa_groups);	
+	printf("%d ", nr_pair_groups);	
+	printf("%d ", nr_tt_groups);	
+	printf("\n");
+}
+
+#define CPU_ID_SHIFT		(16)
+/*
+ * %4 is specific to our platform.
+ */
+#define CPU_NUMA_GROUP(mode, i)	(mode == PROBE_MODE ? cpu_group_id[i] : i % 4)
+static void configure_os_numa_groups(int mode)
+{
+	int i;
+	unsigned long val;
+
+	/*
+	 * pass vcpu & numa group id in a single word using a simple encoding:
+	 * first 16 bits store the cpu identifier
+	 * next 16 bits store the numa group identifier
+	 * */
+	for(i = 0; i < LAST_CPU_ID; i++) {
+		/* store cpu identifier and left shift */
+		val = i;
+		val = val << CPU_ID_SHIFT;
+		/* store the numa group identifier*/
+		val |= CPU_NUMA_GROUP(mode, i);
+	}
+}
+
+void resetTopologyMatrix(){
+	for (int i = 0; i < LAST_CPU_ID; i++) {
+		for(int p=0;p< LAST_CPU_ID;p++){
+			if(p!=i){
+				top_stack[i][p] = 0;
+			}
+		}
+	}
+}
+
+
 int main(int argc, char *argv[])
 {
 	
