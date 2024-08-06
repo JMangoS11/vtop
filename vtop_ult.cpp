@@ -27,10 +27,19 @@
 #include <unordered_map>
 #include <stdio.h>
 
-#include <map>
+#include <math.h>
+#include <math.h>
+#include <float.h>
+
 #include <iostream>
-#include <utility>
-#include <deque>
+#include <vector>
+#include <map>
+#include <tuple>
+
+#include <list>
+using namespace std;
+
+
 
 #define PROBE_MODE	(0)
 #define DIRECT_MODE	(1)
@@ -49,7 +58,6 @@
 #define LAST_CPU_ID	(min(nr_cpus, MAX_CPUS))
 
 typedef unsigned atomic_t;
-
 
 
 int nr_cpus;
@@ -76,6 +84,18 @@ int nr_param = 500;
 int aotChange = -6;
 int aotVChange = 2;
 
+int newTF = 0;
+
+
+#define NUM_CLUSTERS 2 
+#define MAX_ITERATIONS 100
+typedef struct {
+    int x;
+    int i;
+    int j;
+} Point;
+
+
 std::vector<std::vector<int>> numa_to_pair_arr;
 std::vector<std::vector<int>> pair_to_thread_arr;
 std::vector<std::vector<int>> thread_to_cpu_arr;
@@ -91,8 +111,160 @@ pthread_mutex_t top_stack_mutex = PTHREAD_MUTEX_INITIALIZER;
 std::vector<pid_t> stopped_processes;
 
 
-std::map<std::pair<int, int>, int> latencyMap;
-std::deque<std::pair<int, int>> keyOrder;
+std::list<Point> latencies;
+
+
+void addEntry(std::list<Point>& latencies, int latency, int i, int j) {
+	Point itemToadd;
+	itemToadd.x = latency;
+	itemToadd.i = i;
+	itemToadd.j = j;
+    latencies.push_back(itemToadd);
+}
+
+// Function to print the entries in the list
+void printList(const std::list<Point>& latencies) {
+    int index = 0;
+    for (Point latency : latencies) {
+        std::cout << "Entry " << index << ": latency=" << latency.x << std::endl;
+        index++;
+    }
+}
+
+
+
+typedef struct {
+    Point center;
+    int count;
+} Cluster;
+
+void initialize_clusters(Cluster clusters[], list<Point>& latencies) {
+	int i = 0;
+    for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it) {
+        if (i < NUM_CLUSTERS) {
+            clusters[i].center = *it;
+            clusters[i].count = 0;
+	    i++;
+	} else {
+		break;
+        }
+    }
+}
+
+double distance(Point a, Point b) {
+    return fabs(a.x - b.x);
+}
+
+void assign_points_to_clusters(list<Point>& latencies, Cluster clusters[], int* assignments) {
+	int i = 0;
+    for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it) {
+        double min_distance = DBL_MAX;
+        int min_index = 0;
+
+        for (int j = 0; j < NUM_CLUSTERS; j++) {
+            double d = distance(*it, clusters[j].center);
+            if (d < min_distance) {
+                min_distance = d;
+                min_index = j;
+            }
+        }
+        assignments[i] = min_index;
+        clusters[min_index].count++;
+	//printf("assignments[i] = %d, clusters[min_index] = %d \n", assignments[i], clusters[min_index].count);
+	i++;
+    }
+}
+
+void update_cluster_centers(list<Point> &latencies, Cluster clusters[], int* assignments) {
+    for (int i = 0; i < NUM_CLUSTERS; i++) {
+        clusters[i].center.x = 0;
+        clusters[i].count = 0;
+    }
+    int i = 0;
+    for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it) {
+        int cluster_index = assignments[i];
+        clusters[cluster_index].center.x += it->x;
+        clusters[cluster_index].count++;
+	i++;
+    }
+
+    for (int i = 0; i < NUM_CLUSTERS; i++) {
+        if (clusters[i].count > 0) {
+            clusters[i].center.x /= clusters[i].count;
+        }
+    }
+}
+
+void k_means(list<Point>& latencies, Cluster clusters[], int* assignments) {
+    initialize_clusters(clusters, latencies);
+
+    for (int i = 0; i < MAX_ITERATIONS; i++) {
+        assign_points_to_clusters(latencies, clusters, assignments);
+        update_cluster_centers(latencies, clusters, assignments);
+    }
+}
+
+
+//(delete) my current understanding. If i -> j = 0, and i -> k = 1, and j-> k = 0, then the groups must be the same.
+int check_groups(int* assignments) {
+	int i = 0;
+	int g1 = 0;
+	int g2 = 0;
+	for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it){
+		if(assignments[i] == 0) {g1 = (*it).x;}		
+		if(assignments[i] == 1) {g2 = (*it).x;}
+		i++;
+	}
+	int lower = 0;
+	newTF = g1;
+	if(g2 < g1) {
+		lower = 1;
+		newTF = g2;
+	}
+	
+
+	int valid = 0;
+	i = 0;
+        for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it){
+		//printf("Here1 \n");
+		if(assignments[i] == lower){
+			int j = 0;
+			for (std::list<Point>::iterator it2 = latencies.begin(); it2 != latencies.end(); ++it2){
+				//printf("Here2 \n");
+				if((*it2).i == (*it).i && assignments[j] != lower){
+					int k = 0;
+	        			for (std::list<Point>::iterator it3 = latencies.begin(); it3 != latencies.end(); ++it3){
+						//printf("Here3 \n");
+						if(((*it3).i == (*it).j && (*it3).j == (*it2).j) || ((*it3).j == (*it).j && (*it3).i == (*it2).j)) {
+							//printf("found [%d][%d]\n",(*it3).i,(*it3).j);
+							if(assignments[k] == lower) {
+								printf("Verified [%d][%d] and [%d][%d] with [%d][%d]\n", (*it).i, (*it).j, (*it2).i, (*it2).j, (*it3).i, (*it3).j);
+								valid = 1;
+							}
+							break;
+						}
+						k++;
+					}
+				}
+				if(valid == 1) {break;}
+				j++;
+			}
+
+		}
+		if(valid == 1) {break;}
+		i++;
+	}
+	if(valid == 0) {
+		printf("Failed to Verify groups: Topology Changed");
+		return 0;
+	} else {
+		return 1;
+	}
+
+}
+
+
+
 
 
 
@@ -354,7 +526,7 @@ int stick_this_thread_to_core(int core_id,int core_id2) {
    return pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 }
 
-int get_latency_class(int latency){
+int get_latency_class(int latency, int i, int j){
         if(latency<0 || latency>50000){
                 return 1;
         }
@@ -364,6 +536,8 @@ int get_latency_class(int latency){
         }
         if(latency< threefour_latency_class){
 		//printf("--------THREE FOUR IS %d", threefour_latency_class);
+		addEntry(latencies, latency, i, j);	
+		//printList(latencies);
                 return 3;
         }
 
@@ -445,7 +619,9 @@ int measure_latency_pair(int i, int j)
 			}
 		}
 		std::cout<<"Times around:"<<amount_of_times<<"I"<<i<<" J:"<<j<<" Sample passed " << (int)(best_sample*100) << " next.\n";
-		printf("The latency between %d and %d: %d\n", i, j, (int)(best_sample * 100));
+		printf("The latency between %d and %d: %d, timestamps = %ld\n", i, j, (int)(best_sample * 100),even.timestamps.size());
+		//cout << "latencies size is " << latencies.size() << endl;
+
 		return (int)(best_sample * 100);
 	}
 }
@@ -481,7 +657,7 @@ void apply_optimization(void){
                                 		for(int w = 0; w < 6; w++) {
                                         		int latency = measure_latency_pair(x,y);
 							if(latency < lowest) {lowest = latency;}
-							int newClass = get_latency_class(latency);
+							int newClass = get_latency_class(latency,x,y);
                                        			 if(top_stack[x][z] == newClass) {
 								fixed =1;
 								top_stack[x][y] = newClass;
@@ -497,10 +673,13 @@ void apply_optimization(void){
 						if(fixed ==0) {
 							int save = SAMPLE_US;	
 							SAMPLE_US *=3;
-							int check_yz = get_latency_class(measure_latency_pair(y,z));
-							int check_xz = get_latency_class(measure_latency_pair(x,z));
+							int check_yz = get_latency_class(measure_latency_pair(y,z),y,z);
+							int check_xz = get_latency_class(measure_latency_pair(x,z),x,z);
 							if(check_yz != top_stack[y][z] || check_xz != top_stack[x][z]) {
 								printf("Topology Change, New yz = %d, new xz = %d, old yz = %d, old xz = %d \n", check_yz, check_xz, top_stack[y][z], top_stack[x][z]);	
+
+								failed_test = true;
+								return;
 							} else {
 								threefour_latency_class = lowest*1.05;
 								printf("-----threefour is incorrect, new value is %d \n", threefour_latency_class);
@@ -561,7 +740,7 @@ int find_numa_groups(void)
 			if(top_stack[i][j] == 0 ){
 				
 				int latency = measure_latency_pair(i,j);
-				set_latency_pair(i,j,get_latency_class(latency));
+				set_latency_pair(i,j,get_latency_class(latency,i,j));
 			}
 			if(top_stack[i][j] < 4){
 				cpu_group_id[j] = nr_numa_groups;
@@ -592,7 +771,7 @@ void ST_find_topology(std::vector<int> input){
 		if(top_stack[i][j] == 0){
 			int latency = measure_latency_pair(i,j);
 			pthread_mutex_lock(&top_stack_mutex);
-			set_latency_pair(i,j,get_latency_class(latency));
+			set_latency_pair(i,j,get_latency_class(latency,i,j));
 			if(latency_valid == -1){
 				apply_optimization();
 			}
@@ -606,9 +785,9 @@ void ST_find_topology(std::vector<int> input){
                                 for(int w = 0; w < 3; w++) {
                                         int latency = measure_latency_pair(i,j);
 					if(latency < minimum_latency) {minimum_latency = latency;}
-                                        if(latency_valid == get_latency_class(latency)) {
+                                        if(latency_valid == get_latency_class(latency,i,j)) {
 						printf("--------------- \n");
-						top_stack[i][j] = get_latency_class(latency);
+						top_stack[i][j] = get_latency_class(latency,i,j);
 						fixFail = 1;
                                                 break;
                                         }
@@ -686,7 +865,7 @@ bool verify_numa_group(std::vector<int> input){
 	for(int i=0; i < nums.size();i++){
 		for(int j=i+1;j<nums.size();j++){
 			int latency = measure_latency_pair(pairs_to_cpu[nums[i]],pairs_to_cpu[nums[j]]);
-			if(get_latency_class(latency) != 3){
+			if(get_latency_class(latency,i,j) != 3){
 				return false;
 			}
 		}
@@ -707,6 +886,7 @@ std::vector<int> bitmap_to_ord_vector(std::vector<int> input){
 
 
 std::vector<int> bitmap_to_task_stack(std::vector<int> input,int type){
+
 	std::vector<int> stack;
 	std::vector<int> returnstack;
 	for(int i=0;i<input.size();i++){
@@ -745,6 +925,7 @@ void nullify_changes(std::vector<std::vector<int>> input){
 
 
 bool verify_topology(void){
+
 	for(int i=0;i<LAST_CPU_ID;i++){
 		for(int j=0;j<LAST_CPU_ID;j++){
 			if(i==j){
@@ -754,11 +935,12 @@ bool verify_topology(void){
 			}
 		}
 	}
+
 	first_measurement = true;
 	for(int i=0;i<nr_numa_groups;i++){
         	for(int j=i+1;j<nr_numa_groups;j++){
 			int latency = measure_latency_pair(numas_to_cpu[i],numas_to_cpu[j]);
-                	if(get_latency_class(latency) != 4){
+                	if(get_latency_class(latency,i,j) != 4){
 				printf("Failed numa verification");
                         	return false;
                 	}
@@ -767,8 +949,11 @@ bool verify_topology(void){
 
 	std::vector<std::vector<int>> task_set_arr(numa_to_pair_arr.size());
 	for(int i=0;i<numa_to_pair_arr.size();i++){
+
 		task_set_arr[i] = bitmap_to_task_stack(numa_to_pair_arr[i],NUMA_GROUP);
+
 	}
+
 	latency_valid = 3;
 	MT_find_topology(task_set_arr);
 	if(failed_test == true){
@@ -985,7 +1170,9 @@ void resetTopologyMatrix(){
 
 int main(int argc, char *argv[])
 {
-	
+
+
+
 	uint64_t popul_laten_last = now_nsec();
 	uint64_t popul_laten_now = now_nsec();
 	//set program to high priority
@@ -1031,6 +1218,9 @@ int main(int argc, char *argv[])
 			if(!failed_test){
 				if(verbose)
 				printf("TOPOLOGY PROBE SUCCESSFUL.TOOK (MILLISECONDS):%lf\n", (now_nsec()-popul_laten_last)/(double)1000000);
+
+				latencies.clear();
+
 				giveTopologyToKernel();
 				parseTopology();
 				//disableStackingCpus();
@@ -1045,9 +1235,31 @@ int main(int argc, char *argv[])
 		//enableAllCpus();
 		latency_valid = -1;
 		popul_laten_last = now_nsec();
+
 		if(verify_topology()){
-			if(verbose)
-			printf("TOPOLOGY VERIFIED.TOOK (MILLISECONDS):%lf TF = %d\n", (now_nsec()-popul_laten_last)/(double)1000000, threefour_latency_class);
+
+			if(verbose) {
+				printf("TOPOLOGY VERIFIED.TOOK (MILLISECONDS):%lf TF = %d\n", (now_nsec()-popul_laten_last)/(double)1000000, threefour_latency_class);
+			}
+
+       		 	Cluster clusters[NUM_CLUSTERS];
+			cout << "latencies size is " << latencies.size() << endl;
+        		int* assignments = new int[latencies.size()];
+        		//int assignments[1000];
+        		k_means(latencies, clusters, assignments);
+			int i = 0;
+    			for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it) {
+               		//printf("Point %d [%d] [%d] is in cluster %d\n", (*it).x, (*it).i, (*it).j, assignments[i]);
+				i++;
+        		}
+			
+			if(check_groups(assignments) == 0) {
+				threefour_latency_class = newTF;	
+				printf("Threefour = %d\n", threefour_latency_class);
+			}
+			
+
+			latencies.clear();	
 			sleep(sleep_time);
 		}else{
 			latency_valid = -1;
