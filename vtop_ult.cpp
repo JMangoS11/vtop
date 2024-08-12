@@ -216,12 +216,25 @@ int check_groups(int* assignments) {
 		i++;
 	}
 	int lower = 0;
-	newTF = g1;
 	if(g2 < g1) {
 		lower = 1;
-		newTF = g2;
 	}
-	
+
+	//Number between highest of low group and lowest of high group
+	i = 0;
+	int max = 0;
+	int low = INT_MAX;
+	for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it){
+                if(assignments[i] == lower) {
+			if((*it).x > max) {max = (*it).x;}
+		} else {
+			if((*it).x < low) {low = (*it).x;}
+		}
+		i++;
+        }
+	newTF = (int)((max+low)/2);
+
+
 
 	int valid = 0;
 	i = 0;
@@ -255,7 +268,7 @@ int check_groups(int* assignments) {
 		i++;
 	}
 	if(valid == 0) {
-		printf("Failed to Verify groups: Topology Changed");
+		printf("Failed to Verify groups: \n");
 		return 0;
 	} else {
 		return 1;
@@ -488,17 +501,26 @@ static void *thread_fn(void *data)
 	int *max_loops = args->max_loops;
 	atomic_t *cache_pingpong_mutex = *(args->pingpong_mutex);
 	while (1) {
+		if((args->timestamps).size() > 100) {
+			*stop_loops = 4;
+                        pthread_exit(0);
+                }
+
 		if(amount_of_loops++ == *max_loops){
+			//printf("SL = %d aol = %d\n", *stop_loops, amount_of_loops);
 			if(*stop_loops == 1){
 				*stop_loops +=3;
+				//printf("case 1\n");
 				pthread_exit(0);
 			}else{
 			   *stop_loops += 1;
 			}
 		}
 		if (*stop_loops>2){
+			//printf("case 2\n");
 			pthread_exit(0);
 		}
+
 
 		
 		if (__sync_bool_compare_and_swap(cache_pingpong_mutex, me, buddy)) {
@@ -619,7 +641,7 @@ int measure_latency_pair(int i, int j)
 			}
 		}
 		std::cout<<"Times around:"<<amount_of_times<<"I"<<i<<" J:"<<j<<" Sample passed " << (int)(best_sample*100) << " next.\n";
-		printf("The latency between %d and %d: %d, timestamps = %ld\n", i, j, (int)(best_sample * 100),even.timestamps.size());
+		printf("The latency between %d and %d: %d\n", i, j, (int)(best_sample * 100));
 		//cout << "latencies size is " << latencies.size() << endl;
 
 		return (int)(best_sample * 100);
@@ -1252,12 +1274,11 @@ int main(int argc, char *argv[])
                		//printf("Point %d [%d] [%d] is in cluster %d\n", (*it).x, (*it).i, (*it).j, assignments[i]);
 				i++;
         		}
-			
-			if(check_groups(assignments) == 0) {
+			//fix this	
+			if(check_groups(assignments) == 0 && latencies.size() != 0) {
 				threefour_latency_class = newTF;	
 				printf("Threefour = %d\n", threefour_latency_class);
 			}
-			
 
 			latencies.clear();	
 			sleep(sleep_time);
