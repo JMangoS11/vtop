@@ -85,7 +85,7 @@ int aotChange = -6;
 int aotVChange = 2;
 
 int newTF = 0;
-
+int push_up_counter = 0;
 
 #define NUM_CLUSTERS 2 
 #define MAX_ITERATIONS 100
@@ -207,14 +207,25 @@ void k_means(list<Point>& latencies, Cluster clusters[], int* assignments) {
 
 //(delete) my current understanding. If i -> j = 0, and i -> k = 1, and j-> k = 0, then the groups must be the same.
 int check_groups(int* assignments) {
+	
+	//checking if there are even two groups
+	int count0 = 0;
+	int count1 = 0;
+	
 	int i = 0;
 	int g1 = 0;
 	int g2 = 0;
 	for (std::list<Point>::iterator it = latencies.begin(); it != latencies.end(); ++it){
-		if(assignments[i] == 0) {g1 = (*it).x;}		
-		if(assignments[i] == 1) {g2 = (*it).x;}
+		if(assignments[i] == 0) {g1 = (*it).x; count0++;}		
+		if(assignments[i] == 1) {g2 = (*it).x; count1++;}
 		i++;
 	}
+	if(count0 == 0 || count1 == 0) {
+		printf("Only one group found\n");
+		return 1;
+	}
+
+
 	int lower = 0;
 	if(g2 < g1) {
 		lower = 1;
@@ -268,9 +279,10 @@ int check_groups(int* assignments) {
 		i++;
 	}
 	if(valid == 0) {
-		printf("Failed to Verify groups: \n");
+		printf("Two Groups Verified: \n");
 		return 0;
 	} else {
+		printf("One Group Verified\n");
 		return 1;
 	}
 
@@ -804,7 +816,7 @@ void ST_find_topology(std::vector<int> input){
 			int save = SAMPLE_US;	
 			int fixFail = 0;
 			SAMPLE_US *= 3;
-                                for(int w = 0; w < 3; w++) {
+                                for(int w = 0; w < 6; w++) {
                                         int latency = measure_latency_pair(i,j);
 					if(latency < minimum_latency) {minimum_latency = latency;}
                                         if(latency_valid == get_latency_class(latency,i,j)) {
@@ -823,7 +835,7 @@ void ST_find_topology(std::vector<int> input){
 
 
 			//threefour_latency_class = minimum_latency*1.05;
-                       // printf("-----threefour is incorrect, new value is %d \n", threefour_latency_class);
+                        //printf("-----threefour is incorrect, new value is %d \n", threefour_latency_class);
 
 
 
@@ -1224,6 +1236,14 @@ int main(int argc, char *argv[])
 	}
 
 	while(1){
+		
+		//list TF threashold periodically and discard first result
+		if(push_up_counter++ > 10) {
+			printf("Re-adjusting TF. Discard next probe\n");
+			push_up_counter = 0;
+			threefour_latency_class = 30000;
+		}
+
 
 		if(verbose) {
 			print_population_matrix();
@@ -1239,7 +1259,7 @@ int main(int argc, char *argv[])
 			//if reprobe *is* successful, topology is right and we can update the system.
 			if(!failed_test){
 				if(verbose)
-				printf("TOPOLOGY PROBE SUCCESSFUL.TOOK (MILLISECONDS):%lf\n", (now_nsec()-popul_laten_last)/(double)1000000);
+				printf("TOPOLOGY PROBE SUCCESSFUL.TOOK (MILLISECONDS):%lf, TF = %d\n", (now_nsec()-popul_laten_last)/(double)1000000,threefour_latency_class);
 
 				latencies.clear();
 
@@ -1274,7 +1294,6 @@ int main(int argc, char *argv[])
                		//printf("Point %d [%d] [%d] is in cluster %d\n", (*it).x, (*it).i, (*it).j, assignments[i]);
 				i++;
         		}
-			//fix this	
 			if(check_groups(assignments) == 0 && latencies.size() != 0) {
 				threefour_latency_class = newTF;	
 				printf("Threefour = %d\n", threefour_latency_class);
