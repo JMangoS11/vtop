@@ -126,7 +126,7 @@ void addEntry(std::list<Point>& latencies, int latency, int i, int j) {
 void printList(const std::list<Point>& latencies) {
     int index = 0;
     for (Point latency : latencies) {
-        std::cout << "Entry " << index << ": latency=" << latency.x << std::endl;
+        if(verbose) std::cout << "Entry " << index << ": latency=" << latency.x << std::endl;
         index++;
     }
 }
@@ -221,7 +221,7 @@ int check_groups(int* assignments) {
 		i++;
 	}
 	if(count0 == 0 || count1 == 0) {
-		printf("Only one group found\n");
+		if(verbose) printf("Only one group found\n");
 		return 1;
 	}
 
@@ -262,7 +262,7 @@ int check_groups(int* assignments) {
 						if(((*it3).i == (*it).j && (*it3).j == (*it2).j) || ((*it3).j == (*it).j && (*it3).i == (*it2).j)) {
 							//printf("found [%d][%d]\n",(*it3).i,(*it3).j);
 							if(assignments[k] == lower) {
-								printf("Verified [%d][%d] and [%d][%d] with [%d][%d]\n", (*it).i, (*it).j, (*it2).i, (*it2).j, (*it3).i, (*it3).j);
+								if(verbose) printf("Verified [%d][%d] and [%d][%d] with [%d][%d]\n", (*it).i, (*it).j, (*it2).i, (*it2).j, (*it3).i, (*it3).j);
 								valid = 1;
 							}
 							break;
@@ -279,10 +279,10 @@ int check_groups(int* assignments) {
 		i++;
 	}
 	if(valid == 0) {
-		printf("Two Groups Verified: \n");
+		if(verbose) printf("Two Groups Verified: \n");
 		return 0;
 	} else {
-		printf("One Group Verified\n");
+		if(verbose) printf("One Group Verified\n");
 		return 1;
 	}
 
@@ -308,12 +308,12 @@ void giveTopologyToKernel(){
                 }
                 output_str+=":";
         }
-	std::cout<<output_str<<"what"<<std::endl;
+	if(verbose) std::cout<<output_str<<"what"<<std::endl;
         std::ofstream procFile("/proc/edit_topology", std::ios::out | std::ios::trunc);
     if (procFile.is_open()) {
         procFile << output_str;
         procFile.close();
-        std::cout << "Topology data written to /proc/edit_topology successfully." << std::endl;
+        if(verbose) std::cout << "Topology data written to /proc/edit_topology successfully." << std::endl;
     } else {
         std::cerr << "Error: Unable to open /proc/edit_topology for writing." << std::endl;
     }
@@ -617,11 +617,11 @@ int measure_latency_pair(int i, int j)
 
 
 		if (pthread_create(&t_odd, NULL, thread_fn, &odd)) {
-			printf("ERROR creating odd thread\n");
+			if(verbose) printf("ERROR creating odd thread\n");
 			exit(1);
 		}
 		if (pthread_create(&t_even, NULL, thread_fn, &even)) {
-			printf("ERROR creating even thread\n");
+			if(verbose) printf("ERROR creating even thread\n");
 			exit(1);
 		}
 
@@ -641,7 +641,7 @@ int measure_latency_pair(int i, int j)
 				continue;
 			}else{
 				atomic_t s = __sync_lock_test_and_set(&nr_pingpongs.x, 0);
-				std::cout <<"Times around:"<<amount_of_times<<"I"<<i<<" J:"<<j<<" Sample passed " << -1 << " next.\n";
+				if(verbose) std::cout <<"Times around:"<<amount_of_times<<"I"<<i<<" J:"<<j<<" Sample passed " << -1 << " next.\n";
 				return -1;
 			}
 		}
@@ -652,8 +652,8 @@ int measure_latency_pair(int i, int j)
 				best_sample = sample;
 			}
 		}
-		std::cout<<"Times around:"<<amount_of_times<<"I"<<i<<" J:"<<j<<" Sample passed " << (int)(best_sample*100) << " next.\n";
-		printf("The latency between %d and %d: %d\n", i, j, (int)(best_sample * 100));
+		if(verbose) std::cout<<"Times around:"<<amount_of_times<<"I"<<i<<" J:"<<j<<" Sample passed " << (int)(best_sample*100) << " next.\n";
+		if(verbose) printf("The latency between %d and %d: %d\n", i, j, (int)(best_sample * 100));
 		//cout << "latencies size is " << latencies.size() << endl;
 
 		return (int)(best_sample * 100);
@@ -697,7 +697,7 @@ void apply_optimization(void){
 								top_stack[x][y] = newClass;
  								top_stack[y][x] = newClass;
 								sub_rel = newClass;
-								printf("----apply---------- \n");
+								if(verbose) printf("----apply---------- \n");
                                                			 break;
                                        			 }
                                			 }
@@ -710,13 +710,13 @@ void apply_optimization(void){
 							int check_yz = get_latency_class(measure_latency_pair(y,z),y,z);
 							int check_xz = get_latency_class(measure_latency_pair(x,z),x,z);
 							if(check_yz != top_stack[y][z] || check_xz != top_stack[x][z]) {
-								printf("Topology Change, New yz = %d, new xz = %d, old yz = %d, old xz = %d \n", check_yz, check_xz, top_stack[y][z], top_stack[x][z]);	
+								if(verbose) printf("Topology Change, New yz = %d, new xz = %d, old yz = %d, old xz = %d \n", check_yz, check_xz, top_stack[y][z], top_stack[x][z]);	
 
 								failed_test = true;
 								return;
 							} else {
 								threefour_latency_class = lowest*1.05;
-								printf("-----threefour is incorrect, new value is %d \n", threefour_latency_class);
+								if(verbose) printf("-----threefour is incorrect, new value is %d \n", threefour_latency_class);
                                                         	//printf("x: %d, z: %d, topstack xz %d, sub_rel: %d \n", x, z, top_stack[x][z], sub_rel);
                                                         	//printf("y: %d, z: %d, topstack yz %d, sub_rel: %d \n", y, z, top_stack[y][z], sub_rel);
                                                         	//failed_test = true;
@@ -744,8 +744,8 @@ static void print_population_matrix(void)
 
 	for (i = 0; i < LAST_CPU_ID; i++) {
 		for (j = 0; j < LAST_CPU_ID; j++)
-			printf("%7d", (int)(top_stack[i][j]));
-		printf("\n");
+			if(verbose) printf("%7d", (int)(top_stack[i][j]));
+		if(verbose) printf("\n");
 	}
 }
 
@@ -820,7 +820,7 @@ void ST_find_topology(std::vector<int> input){
                                         int latency = measure_latency_pair(i,j);
 					if(latency < minimum_latency) {minimum_latency = latency;}
                                         if(latency_valid == get_latency_class(latency,i,j)) {
-						printf("--------------- \n");
+						if(verbose) printf("--------------- \n");
 						top_stack[i][j] = get_latency_class(latency,i,j);
 						fixFail = 1;
                                                 break;
@@ -839,7 +839,7 @@ void ST_find_topology(std::vector<int> input){
 
 
 
-			printf("Failed ST, topstack[i][j] %d, i %d, j %d, latency_valid %d  \n",top_stack[i][j], i, j, latency_valid);
+			if(verbose) printf("Failed ST, topstack[i][j] %d, i %d, j %d, latency_valid %d  \n",top_stack[i][j], i, j, latency_valid);
                         return;
 
 		}
@@ -975,7 +975,7 @@ bool verify_topology(void){
         	for(int j=i+1;j<nr_numa_groups;j++){
 			int latency = measure_latency_pair(numas_to_cpu[i],numas_to_cpu[j]);
                 	if(get_latency_class(latency,i,j) != 4){
-				printf("Failed numa verification");
+				if(verbose) printf("Failed numa verification");
                         	return false;
                 	}
 		}
@@ -992,7 +992,7 @@ bool verify_topology(void){
 	MT_find_topology(task_set_arr);
 	if(failed_test == true){
 		nullify_changes(task_set_arr);
-		printf("Failed cpu verification \n");
+		if(verbose) printf("Failed cpu verification \n");
 		latency_valid = -1;
 		return false;
 	}
@@ -1005,7 +1005,7 @@ bool verify_topology(void){
 	
 	if(failed_test == true){
 		nullify_changes(task_set_arr);
-		printf("Failed smt verification");
+		if(verbose) printf("Failed smt verification");
 		latency_valid = -1;
 		return false;
 	}
@@ -1026,7 +1026,7 @@ bool verify_topology(void){
 	MT_find_topology(task_set_arr);
 	if(failed_test == true){
 		nullify_changes(task_set_arr);
-		printf("Failed stack verification");
+		if(verbose) printf("Failed stack verification");
 		return false;
 	}
 	return true;
@@ -1145,7 +1145,7 @@ static void parseTopology(void)
 									std::cout<<"[";
 								}
                                 for(int y=0;y<cpus_in_thread.size();y++){
-					printf("%2d",cpus_in_thread[y]);
+					if(verbose) printf("%2d",cpus_in_thread[y]);
 					if(y!=cpus_in_thread.size()-1){
 						if(verbose){
 							std::cout<<" ";
@@ -1165,6 +1165,7 @@ static void parseTopology(void)
 	printf("%d ", nr_numa_groups);	
 	printf("%d ", nr_pair_groups);	
 	printf("%d ", nr_tt_groups);	
+	printf("Time is: %li",time(NULL));
 	printf("\n");
 }
 
@@ -1232,7 +1233,7 @@ int main(int argc, char *argv[])
 		parseTopology();
 		disableStackingCpus();
 	}else{
-		printf("Probing failed, waiting until next session\n");
+		if(verbose) printf("Probing failed, waiting until next session\n");
 	}
 
 	while(1){
@@ -1280,12 +1281,12 @@ int main(int argc, char *argv[])
 
 		if(verify_topology()){
 
-			if(verbose) {
-				printf("TOPOLOGY VERIFIED.TOOK (MILLISECONDS):%lf TF = %d\n", (now_nsec()-popul_laten_last)/(double)1000000, threefour_latency_class);
-			}
+			//if(verbose) {
+				printf("TOPOLOGY VERIFIED.TOOK (MILLISECONDS):%lf TF = %d, Time is: %li\n", (now_nsec()-popul_laten_last)/(double)1000000, threefour_latency_class, time(NULL));
+			//}
 
        		 	Cluster clusters[NUM_CLUSTERS];
-			cout << "latencies size is " << latencies.size() << endl;
+			if(verbose) cout << "latencies size is " << latencies.size() << endl;
         		int* assignments = new int[latencies.size()];
         		//int assignments[1000];
         		k_means(latencies, clusters, assignments);
