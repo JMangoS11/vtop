@@ -309,14 +309,16 @@ void giveTopologyToKernel(){
                 output_str+=":";
         }
 	if(verbose) std::cout<<output_str<<"what"<<std::endl;
-        std::ofstream procFile("/proc/edit_topology", std::ios::out | std::ios::trunc);
+        //EDIT OUT std::ofstream procFile("/proc/edit_topology", std::ios::out | std::ios::trunc);
+/* EDIT OUT
     if (procFile.is_open()) {
         procFile << output_str;
         procFile.close();
-        if(verbose) std::cout << "Topology data written to /proc/edit_topology successfully." << std::endl;
+        //EDIT OUT if(verbose) std::cout << "Topology data written to /proc/edit_topology successfully." << std::endl;
     } else {
-        std::cerr << "Error: Unable to open /proc/edit_topology for writing." << std::endl;
+        //EDIT OUT std::cerr << "Error: Unable to open /proc/edit_topology for writing." << std::endl;
     }
+    */
 }
 bool toggle_CPU_active(int cpuNumber,bool active) { //commented all refrences
     std::string path = "/sys/devices/system/cpu/cpu" + std::to_string(cpuNumber) + "/online";
